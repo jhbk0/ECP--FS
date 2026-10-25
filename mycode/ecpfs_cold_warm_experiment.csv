@@ -1,0 +1,4 @@
+stage,query,latency_ms,correct_neighbors,recall
+Query 0 - First Search,0,350.1196000725031,3,0.3
+Query 1 - Second Search,1,258.4674999816343,2,0.2
+Query 0 - Repeated Search,0,16.445000073872507,3,0.3
