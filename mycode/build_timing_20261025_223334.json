@@ -1,0 +1,14 @@
+{
+    "dataset": "ccnews-nomic-768-normalized.h5",
+    "git_commit": "7a0b7d7",
+    "levels": 3,
+    "metric": "L2",
+    "is_normalized": true,
+    "strategy": "random",
+    "target_cluster_items": 43,
+    "fallback_batch_rows": 10000,
+    "initialization_seconds": 0.11850280000362545,
+    "selection_seconds": 89.83591130003333,
+    "construction_seconds": 281.2414402998984,
+    "total_seconds": 371.1998859999003
+}
