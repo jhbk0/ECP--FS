@@ -1,0 +1,60 @@
+{
+  "config": {
+    "run_id": "20261027_185046",
+    "dry_run": false,
+    "dataset": "ccnews-nomic-768-normalized",
+    "levels": 3,
+    "target_cluster_items": 43,
+    "strategy": "random",
+    "metric": "L2",
+    "k": 10,
+    "sweep": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "n_queries": 200,
+    "repeats": 1,
+    "search_memory_limit_bytes": 3221225472,
+    "build_memory_limit_bytes": 3221225472,
+    "data_file": "ccnews-nomic-768-normalized.h5",
+    "n_train": 495328,
+    "dim": 768,
+    "n_queries_run": 200,
+    "index": "ccnews_L3_random_43.zarr",
+    "build": {
+      "note": "built earlier, stats not recorded",
+      "index_size_gb": 1.508,
+      "index_files": 73206,
+      "raw_data_gb": 1.522
+    },
+    "sweep_minutes": 6.7,
+    "ground_truth": {
+      "brute_force_seconds": 40.3,
+      "brute_force_ms_per_query": 40.35,
+      "computed_on": "DESKTOP-FBUJB94",
+      "top100_agreement_with_file": 0.99998,
+      "max_distance_difference": 7.748603820800781e-07
+    },
+    "b_for_90pct_recall_flat": 327,
+    "n_leaves": 11520,
+    "leaf_sizes": {
+      "mean": 42.99722222222222,
+      "median": 28.0,
+      "max": 823,
+      "share_over_2x_target": 0.11684027777777778
+    }
+  },
+  "env": {
+    "git_commit": "66a5ca4",
+    "python": "3.14.9",
+    "os": "Windows-11-10.0.26300-SP0",
+    "hostname": "DESKTOP-FBUJB94",
+    "cpu": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",
+    "physical_cores": 4,
+    "ram_gb": 8.2
+  }
+}

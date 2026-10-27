@@ -1,0 +1,7 @@
+rep,search_exp,os_cache_evicted,ram_start_mb,ram_peak_mb,ram_added_mb,close_s,cleanup_s,queries_erased,free_ram_gb
+0,1,False,385,466,81,17.6,10.6,400,2.86
+0,2,False,389,525,136,17.4,10.7,400,2.83
+0,4,False,404,611,207,17.6,10.4,400,2.97
+0,8,False,403,757,354,17.8,11.2,400,2.83
+0,16,False,388,971,583,17.9,11.4,400,2.85
+0,32,False,410,1256,846,17.6,10.2,400,2.77
