@@ -1,0 +1,5 @@
+dataset,strategy,capacity_vectors,preparation_id,seconds,peak_rss_mib,representatives,seed
+ccnews,kmeans,128,ccnews_kmeans_C128_seed42,253.75524280000002,1708.69140625,3870,42
+ccnews,kmeans,256,ccnews_kmeans_C256_seed42,124.90159120000021,1911.21875,1935,42
+ccnews,kmeans,512,ccnews_kmeans_C512_seed42,46.703106800000114,1806.46484375,968,42
+ccnews,kmeans,1024,ccnews_kmeans_C1024_seed42,19.82249000000047,1726.4140625,484,42

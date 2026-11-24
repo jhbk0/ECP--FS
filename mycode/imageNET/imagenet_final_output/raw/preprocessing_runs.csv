@@ -1,0 +1,4 @@
+dataset,strategy,capacity_vectors,preparation_id,seconds,peak_rss_mib,representatives,seed
+imagenet,kmeans,256,imagenet_kmeans_C256_seed7,254.29232550000052,2642.046875,5005,7
+imagenet,kmeans,512,imagenet_kmeans_C512_seed42,143.3627577999996,2971.421875,2503,42
+imagenet,kmeans,1024,imagenet_kmeans_C1024_seed42,116.36922249999952,2715.5,1252,42

@@ -1,0 +1,12 @@
+index_id,time,stage,message
+imagenet_kmeans_L2_C128,2026-11-16T22:33:01,build_or_search,K-means has an empty cluster: 1151
+imagenet_kmeans_L2_C128,2026-11-18T14:11:11,kmeans_empty_cluster,seed=42: K-means has an empty cluster: 1151
+imagenet_kmeans_L2_C128,2026-11-18T14:18:44,kmeans_empty_cluster,seed=7: K-means has an empty cluster: 2590
+imagenet_kmeans_L2_C128,2026-11-18T14:26:31,kmeans_empty_cluster,seed=123: K-means has an empty cluster: 4897
+imagenet_kmeans_L2_C128,2026-11-18T14:33:50,kmeans_empty_cluster,seed=2024: K-means has an empty cluster: 1891
+imagenet_kmeans_L2_C128,2026-11-18T14:41:47,kmeans_empty_cluster,seed=31337: K-means has an empty cluster: 2706
+imagenet_kmeans_L2_C128,2026-11-18T14:50:51,kmeans_empty_cluster,seed=99999: K-means has an empty cluster: 4508
+imagenet_kmeans_L2_C128,2026-11-18T14:50:51,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+imagenet_kmeans_L2_C256,2026-11-18T14:54:36,kmeans_empty_cluster,seed=42: K-means has an empty cluster: 4775
+imagenet_kmeans_L2_C256,2026-11-18T14:58:51,kmeans_seed_used,seed=7 used after failed seeds [42]
+imagenet_kmeans_L3_C128,2026-11-18T17:27:41,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"

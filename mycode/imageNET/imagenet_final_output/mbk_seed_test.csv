@@ -1,0 +1,5 @@
+time,dataset,level,capacity_vectors,seed,clusters_requested,empty_groups,seconds,status,details
+2026-11-17T16:38:14,imagenet,2,128,10,10010,3,686.08,empty_groups,First empty group: 2490
+2026-11-17T16:48:42,imagenet,2,128,21,10010,3,626.97,empty_groups,First empty group: 8862
+2026-11-17T16:59:36,imagenet,2,128,100,10010,3,654.62,empty_groups,First empty group: 3153
+2026-11-17T17:09:36,imagenet,2,128,123,10010,2,599.03,empty_groups,First empty group: 4897
