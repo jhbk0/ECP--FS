@@ -1,0 +1,2 @@
+dataset,strategy,capacity_vectors,preparation_id,seconds,peak_rss_mib,representatives,seed
+laion,kmeans,1024,laion_kmeans_C1024_seed42,45.300221299999976,2056.1640625,977,42

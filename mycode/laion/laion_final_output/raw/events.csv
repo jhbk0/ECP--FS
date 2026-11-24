@@ -1,0 +1,26 @@
+index_id,time,stage,message
+laion_kmeans_L2_C128,2026-11-18T13:32:29,build_or_search,K-means has an empty cluster: 8
+laion_kmeans_L2_C128,2026-11-19T02:27:06,kmeans_empty_cluster,seed=42: K-means has an empty cluster: 8
+laion_kmeans_L2_C128,2026-11-19T02:32:43,kmeans_empty_cluster,seed=7: K-means has an empty cluster: 516
+laion_kmeans_L2_C128,2026-11-19T02:38:22,kmeans_empty_cluster,seed=123: K-means has an empty cluster: 17
+laion_kmeans_L2_C128,2026-11-19T02:43:19,kmeans_empty_cluster,seed=2024: K-means has an empty cluster: 13
+laion_kmeans_L2_C128,2026-11-19T02:48:43,kmeans_empty_cluster,seed=31337: K-means has an empty cluster: 212
+laion_kmeans_L2_C128,2026-11-19T02:54:11,kmeans_empty_cluster,seed=99999: K-means has an empty cluster: 216
+laion_kmeans_L2_C128,2026-11-19T02:54:11,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+laion_kmeans_L2_C256,2026-11-19T02:57:09,kmeans_empty_cluster,seed=42: K-means has an empty cluster: 357
+laion_kmeans_L2_C256,2026-11-19T02:59:52,kmeans_empty_cluster,seed=7: K-means has an empty cluster: 282
+laion_kmeans_L2_C256,2026-11-19T03:02:36,kmeans_empty_cluster,seed=123: K-means has an empty cluster: 11
+laion_kmeans_L2_C256,2026-11-19T03:05:20,kmeans_empty_cluster,seed=2024: K-means has an empty cluster: 80
+laion_kmeans_L2_C256,2026-11-19T03:08:28,kmeans_empty_cluster,seed=31337: K-means has an empty cluster: 520
+laion_kmeans_L2_C256,2026-11-19T03:10:01,kmeans_empty_cluster,seed=99999: K-means has an empty cluster: 600
+laion_kmeans_L2_C256,2026-11-19T03:10:01,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+laion_kmeans_L2_C512,2026-11-19T03:10:48,kmeans_empty_cluster,seed=42: K-means has an empty cluster: 481
+laion_kmeans_L2_C512,2026-11-19T03:12:02,kmeans_empty_cluster,seed=7: K-means has an empty cluster: 240
+laion_kmeans_L2_C512,2026-11-19T03:13:17,kmeans_empty_cluster,seed=123: K-means has an empty cluster: 25
+laion_kmeans_L2_C512,2026-11-19T03:14:38,kmeans_empty_cluster,seed=2024: K-means has an empty cluster: 250
+laion_kmeans_L2_C512,2026-11-19T03:15:58,kmeans_empty_cluster,seed=31337: K-means has an empty cluster: 180
+laion_kmeans_L2_C512,2026-11-19T03:17:22,kmeans_empty_cluster,seed=99999: K-means has an empty cluster: 18
+laion_kmeans_L2_C512,2026-11-19T03:17:22,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+laion_kmeans_L3_C128,2026-11-19T04:15:07,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+laion_kmeans_L3_C256,2026-11-19T04:15:07,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
+laion_kmeans_L3_C512,2026-11-19T04:15:07,kmeans_all_seeds_failed,"all K-means seeds failed (seeds tried: [42, 7, 123, 2024, 31337, 99999])"
