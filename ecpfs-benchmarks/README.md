@@ -23,9 +23,13 @@ Run in this order:
 VIBE: all 1000 queries, k = 100, 5 runs, best run reported.
 
 ## analysis/
-`an3.py` (tables), `mk_paper.py` (paper figures), `all_results_summary.csv` (the 222 stand-alone settings).
-`python3 mk_paper.py <dir with all_*.jsonl> <out dir>`
+- `results/` : the raw stand-alone results (192 small files, 4 MB): per-setting `.jsonl`, meta and leaf-size files
+- `all_results_summary.csv` : one row per setting (222)
+- `an3.py` : tables (run inside `results/`: `python3 ../an3.py`)
+- `mk_paper.py` : Figures 2 and 3. `python3 mk_paper.py results ../figures`
+- `fig_protocol.py` : Figure 1 (protocol diagram), writes `fig_protocol.pdf` in the current folder
+The finished PDFs are in `figures/`. Needs python3, numpy, matplotlib.
 
 ## Notes
 - Recall: stand-alone = identifier overlap; VIBE results = distance rule (dist <= true 100th distance + 1e-3).
-- The datasets and raw results are not in this repository (tens of GB).
+- The datasets (tens of GB) and the VIBE result files are not in this repository; the stand-alone results are.

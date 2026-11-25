@@ -1,0 +1,106 @@
+{
+ "tag": "t64_l2_n1281167_c512",
+ "host": "cn8.hpc.itu.dk",
+ "cpu": "AMD EPYC 7742 64-Core Processor",
+ "cpus_visible": 1,
+ "pinned_cpus": [
+  0
+ ],
+ "mem_total_gb": 262.982576,
+ "kernel": "4.18.0-553.120.1.el8_10.x86_64",
+ "python": "3.14.10",
+ "numpy": "2.5.4",
+ "ecpfs": "0.9.101",
+ "ecp_sha": "b730f102512329e4ef25fadf1b1f6d5f68215310",
+ "slurm": {
+  "SLURM_JOB_ID": "182682",
+  "SLURM_CPUS_PER_TASK": "16",
+  "SLURM_MEM_PER_NODE": "102400",
+  "SLURM_JOB_NODELIST": "cn8"
+ },
+ "dataset": {
+  "file": "imagenet-clip-512-normalized.hdf5",
+  "keys": {
+   "avg_distances": [
+    [
+     1000
+    ],
+    "float64"
+   ],
+   "distances": [
+    [
+     1000,
+     100
+    ],
+    "float64"
+   ],
+   "neighbors": [
+    [
+     1000,
+     100
+    ],
+    "int64"
+   ],
+   "test": [
+    [
+     1000,
+     512
+    ],
+    "float32"
+   ],
+   "train": [
+    [
+     1281167,
+     512
+    ],
+    "float32"
+   ]
+  },
+  "attrs": {
+   "dimension": 512,
+   "distance": "normalized",
+   "point_type": "float"
+  },
+  "n_used": 1281167,
+  "d": 512
+ },
+ "args": {
+  "data": "/home/ahmh/vibe_data/imagenet-clip-512-normalized.hdf5",
+  "workdir": "/scratch/182682",
+  "out": "/home/ahmh/ecp_results/all_imagenet_C128kb.jsonl",
+  "target": 64,
+  "levels": 2,
+  "search_exp": "24,96,400,1600,6400",
+  "k": 100,
+  "n_queries": 500,
+  "passes": 2,
+  "cold": 1,
+  "max_train": 0,
+  "max_increments": -1,
+  "node_chunk_kb": 512,
+  "embedding_dtype": "",
+  "index_memory_gb": 0,
+  "index_memory_frac": 0,
+  "build_only": false,
+  "deadline_seconds": 0
+ },
+ "build": {
+  "copy_s": 24.686044454574585,
+  "select_s": 6.015532732009888,
+  "build_only_s": 12.570355653762817,
+  "build_total_s": 18.585888385772705,
+  "peak_rss_gb": 7.430664,
+  "index_gb": 2.560923485,
+  "index_files": 121933
+ },
+ "index_gb": 2.560923485,
+ "index_files": 121933,
+ "loadavg_start": [
+  49.4,
+  49.13,
+  51.47
+ ],
+ "calib_gbps_start": 20.499880950470605,
+ "started": "2026-11-17 18:46:06",
+ "note": "calib_gbps = single-thread memory read speed; a low value during a run means a noisy node"
+}
