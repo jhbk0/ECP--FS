@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_ivf
+#SBATCH --output=vibe_ivf_%a.out
+#SBATCH --error=vibe_ivf_%a.err
+#SBATCH --array=0-3%1
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=150G
+#SBATCH --time=24:00:00
+#SBATCH --partition=cores
+
+# STAGE 11a: VIBE's own run.py, container-free (--local), Faiss IVF-Flat on the same 4 datasets as the eCP-FS run.
+# Array task 0=ccnews, 1=imagenet-clip, 2=laion-clip (OOD), 3=msmarco (8.8M). One task at a time (%1).
+# Submit on the SAME node as the eCP-FS run:   sbatch --nodelist=cn8 stage11a_vibe_ivf.job
+# Then start the HNSW job AFTER this one (never at the same time, so the timings do not disturb each other):
+#   sbatch --nodelist=cn8 --dependency=afterany:<this job id> stage11b_vibe_hnsw.job
+#
+# VIBE (unchanged): all 1000 test queries, k = 100, each setting is run 5 times and the BEST run is reported,
+#   pinned to one core with 1 thread, IVF n_list = 512/1024/2048/4096 with VIBE's n_probe lists.
+# Only difference from VIBE's default: --local (no Apptainer).
+# Results: ~/vibe_run_ivf_<name>/results/<dataset>/100/ivf(faiss)/*.hdf5
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR"
+
+NAMES=(ccnews-nomic-768-normalized imagenet-clip-512-normalized laion-clip-512-normalized msmarco-qwen-1024-normalized)
+NAME=${NAMES[$SLURM_ARRAY_TASK_ID]}
+SHORT=${NAME%%-*}
+DATA=$HOME/vibe_data/$NAME.hdf5
+SRC=$HOME/vibe_src
+WORK=$HOME/vibe_run_ivf_$SHORT
+
+echo "=== CONTEXT: $NAME (Faiss IVF-Flat) ==="; hostname; date; nproc; lscpu | grep "Model name"; free -g | head -2
+echo "load average: $(cat /proc/loadavg)"
+test -f "$DATA" || { echo "STOP: $DATA not found"; exit 1; }
+test -f "$SRC/run.py" || { echo "STOP: run stage11_install_vibe.job first ($SRC/run.py missing)"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/vibe_env"
+# VIBE's worker starts "python3" from PATH, so the activated environment must be the first python3
+echo "python3 = $(which python3)"
+python3 -c "import faiss; print('faiss', faiss.__version__)"
+echo "VIBE commit: $(git -C "$SRC" rev-parse HEAD)"
+
+# fresh working copy: only the code, the data is linked (VIBE skips its download when the file exists)
+rm -rf "$WORK"; mkdir -p "$WORK/data"
+cp -r "$SRC/vibe" "$SRC/run.py" "$SRC/run_algorithm.py" "$SRC/logging.conf" "$WORK/"
+ln -s "$DATA" "$WORK/data/$NAME.hdf5"
+cd "$WORK"
+
+echo; echo "=================== Faiss IVF-Flat ==================="; date
+python3 run.py --dataset "$NAME" --local --module faiss --algorithm "ivf(faiss)" --count 100 --runs 5 --parallelism 1 --timeout 86400 \
+  || echo "FAILED ivf(faiss) on $NAME (continuing)"
+
+echo; echo "=== SUMMARY ==="; date
+echo "ivf(faiss): $(ls "results/$NAME/100/ivf(faiss)" 2>/dev/null | grep -c '\.hdf5$') result files"
+du -sh results 2>/dev/null
+echo "ALL DONE"

@@ -1,0 +1,84 @@
+#!/bin/bash
+#SBATCH --job-name=ecp_all
+#SBATCH --output=ecp_all_%a.out
+#SBATCH --error=ecp_all_%a.err
+#SBATCH --array=0-3%1
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=120G
+#SBATCH --time=24:00:00
+#SBATCH --partition=cores
+
+# STAGE 10: THE ONE RUN. Array task 0=ccnews, 1=imagenet-clip, 2=laion-clip (OOD), 3=msmarco (8.8M). One task at a time (%1).
+# Tree levels: 2 for datasets under 5M vectors, 3 for datasets above (msmarco).
+# Cluster size is set in BYTES with the paper's formula  l = N*V/C  (V = dimensions*4 bytes, float32):
+#   target_items = C / V,  C = 128, 256, 512 KB, 1, 2, 4, 8 MB   (msmarco: 512 KB and up, 128/256 KB would make millions of files)
+# For every C:
+#   1. unlimited cache, 500 queries, 2 passes (pass 1 cold). search_exp chosen so every C scans the SAME bytes per query
+#      (3, 12, 50, 200, 800 MB per query; search_exp = bytes / C, at least 1).
+#   2. cache limit = 25% of the index size, 300 queries, 12 and 50 MB per query.
+#   REFERENCE size C = 512 KB additionally gets the full cache sweep: limit = 100%, 50%, 25%, 10% of the index, 12/50/200 MB per query.
+# Results: ~/ecp_results/all_<name>_C<KB>kb.jsonl (+ _m<fraction>.jsonl for cache limits, meta, leaf sizes, per-query files).
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR" "$HOME/ecp_results"
+
+NAMES=(ccnews-nomic-768-normalized imagenet-clip-512-normalized laion-clip-512-normalized msmarco-qwen-1024-normalized)
+NAME=${NAMES[$SLURM_ARRAY_TASK_ID]}
+SHORT=${NAME%%-*}
+DATA=$HOME/vibe_data/$NAME.hdf5
+RES=$HOME/ecp_results
+SCR=/scratch/${SLURM_JOB_ID}
+if [ "$SHORT" = "msmarco" ]; then SIZES="512 1024 2048 4096 8192"; NEED=80; else SIZES="128 256 512 1024 2048 4096 8192"; NEED=20; fi
+
+echo "=== CONTEXT: $NAME ==="; hostname; date; nproc; lscpu | grep "Model name"; free -g | head -2
+echo "load average: $(cat /proc/loadavg)"
+test -f "$DATA" || { echo "STOP: $DATA not found"; exit 1; }
+test -f "$HOME/ecp_run2.py" || { echo "STOP: ecp_run2.py missing"; exit 1; }
+avail_gb=$(df -BG --output=avail /scratch | tail -1 | tr -dc '0-9')
+[ "${avail_gb:-0}" -ge "$NEED" ] || { echo "STOP: less than $NEED GB free in /scratch"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/ecp_env"
+python -c "import ecpfs; print('env OK')"
+export ECP_SHA=$(git -C "$HOME/ecp_src" rev-parse HEAD 2>/dev/null || echo unknown)
+cleanup() { rm -rf "$SCR"; echo "scratch cleaned"; }
+trap cleanup EXIT INT TERM
+mkdir -p "$SCR"
+CPU=$(python -c "import os; print(min(os.sched_getaffinity(0)))")
+D=$(python -c "import h5py; print(h5py.File('$DATA','r')['train'].shape[1])")
+N=$(python -c "import h5py; print(h5py.File('$DATA','r')['train'].shape[0])")
+V=$((D*4))
+if [ "$N" -lt 5000000 ]; then LEVELS=2; else LEVELS=3; fi
+echo "vectors $N, dimensions $D, vector size V = $V bytes (float32); tree levels $LEVELS (2 if under 5M vectors, else 3); cluster sizes (KB): $SIZES"
+
+se_list() { python -c "
+import sys
+C=int(sys.argv[1])*1024
+out=[]
+for mb in sys.argv[2:]:
+    se=max(1,round(float(mb)*1048576/C))
+    if se not in out: out.append(se)
+print(','.join(map(str,out)))" "$@"; }
+
+for CKB in $SIZES; do
+  ITEMS=$(python -c "print(max(2, round($CKB*1024/$V)))")
+  echo; echo "=================== C = $CKB KB -> target_items $ITEMS ==================="; date
+  COMMON="--data $DATA --workdir $SCR --target $ITEMS --levels $LEVELS --k 100"
+  OUT=$RES/all_${SHORT}_C${CKB}kb
+  python "$HOME/ecp_run2.py" $COMMON --out ${OUT}.jsonl --build-only || { echo "FAILED build for C=$CKB KB (continuing)"; rm -rf "$SCR"/*; continue; }
+
+  SE1=$(se_list $CKB 3 12 50 200 800)
+  echo "--- unlimited cache, search_exp $SE1"; date
+  RAYON_NUM_THREADS=1 taskset -c "$CPU" python "$HOME/ecp_run2.py" $COMMON --out ${OUT}.jsonl --search-exp $SE1 --n-queries 500 --passes 2 --cold 1 || echo "FAILED unlimited run for C=$CKB KB (continuing)"
+
+  if [ "$CKB" = "512" ]; then FRACS="1.0 0.5 0.25 0.1"; SE2=$(se_list $CKB 12 50 200); else FRACS="0.25"; SE2=$(se_list $CKB 12 50); fi
+  for FR in $FRACS; do
+    echo "--- cache limit $FR x index size, search_exp $SE2"; date
+    RAYON_NUM_THREADS=1 taskset -c "$CPU" python "$HOME/ecp_run2.py" $COMMON --out ${OUT}_m${FR}.jsonl --search-exp $SE2 --n-queries 300 --passes 2 --cold 1 --index-memory-frac $FR || echo "FAILED cache $FR for C=$CKB KB (continuing)"
+  done
+  rm -rf "$SCR"/*      # free scratch (vector copy + index) before the next size
+done
+echo; echo "=== SUMMARY ==="; date; ls -l $RES/all_${SHORT}_* | head -120
+echo "ALL DONE"

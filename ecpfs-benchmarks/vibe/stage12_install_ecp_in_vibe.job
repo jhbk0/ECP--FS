@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_ecp_inst
+#SBATCH --output=vibe_ecp_install.out
+#SBATCH --error=vibe_ecp_install.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=00:30:00
+#SBATCH --partition=cores
+
+# STAGE 12 (setup): make VIBE's run.py able to run eCP-FS.
+#  - adds the few small packages VIBE needs to your existing eCP-FS environment (~/ecp_env, python 3.14), because
+#    ecpfs is built for that python
+#  - adds the new algorithm folder vibe/algorithms/ecpfs (2 new files, nothing existing is changed) to ~/vibe_src
+# Needs vibe_ecpfs.patch in your home folder. Safe to run twice. Must run as a job.
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR"
+SRC=$HOME/vibe_src
+test -f "$HOME/vibe_ecpfs.patch" || { echo "STOP: vibe_ecpfs.patch is not in $HOME"; exit 1; }
+test -f "$SRC/run.py" || { echo "STOP: run stage11_install_vibe.job first"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/ecp_env"
+python --version
+python -c "import ecpfs; print('ecpfs OK', ecpfs.__file__)"
+
+echo; echo "=== 1. packages VIBE needs, into ecp_env ==="
+NP0=$(python -c "import numpy; print(numpy.__version__)")
+echo "numpy before: $NP0"
+echo "--- dry run first (changes nothing) ---"
+python -m pip install --no-input --dry-run numba psutil ansicolors pyyaml | tee "$TMPDIR/dry.txt"
+# STOP if pip would touch numpy, h5py or ecpfs: that could break the environment the first eCP-FS run used
+if grep -i "^Would install" "$TMPDIR/dry.txt" | tr ' ' '\n' | grep -i -E "^(numpy|h5py|ecpfs)-"; then
+  echo "STOP: pip would change numpy/h5py/ecpfs in ecp_env. Nothing was installed. Send this log to Claude."; exit 1
+fi
+python -m pip install --no-input numba psutil ansicolors pyyaml
+python -c "import numba, psutil, yaml, colors, h5py, numpy, ecpfs; print('numba', numba.__version__, '| numpy', numpy.__version__, '(was $NP0) | h5py', h5py.__version__, '| ecpfs still imports')"
+
+echo; echo "=== 2. the new algorithm folder ==="
+if git -C "$SRC" apply --check "$HOME/vibe_ecpfs.patch" 2>/dev/null; then
+  git -C "$SRC" apply "$HOME/vibe_ecpfs.patch"; echo "patch applied"
+elif git -C "$SRC" apply --reverse --check "$HOME/vibe_ecpfs.patch" 2>/dev/null; then
+  echo "patch was already applied"
+else
+  echo "STOP: the patch neither applies nor is already applied"; exit 1
+fi
+git -C "$SRC" status --short
+
+echo; echo "=== 3. CHECK with this environment: VIBE loads the eCP-FS module and lists it ==="
+cd "$SRC"
+python -c "
+import importlib
+m = importlib.import_module('vibe.algorithms.ecpfs.module'); print('EcpFs', hasattr(m, 'EcpFs'))"
+python run.py --list-algorithms | grep -i ecpfs
+echo "INSTALL DONE"

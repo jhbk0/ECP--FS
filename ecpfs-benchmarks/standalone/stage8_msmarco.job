@@ -1,0 +1,61 @@
+#!/bin/bash
+#SBATCH --job-name=ecp_msm
+#SBATCH --output=ecp_msm.out
+#SBATCH --error=ecp_msm.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=120G
+#SBATCH --time=20:00:00
+#SBATCH --partition=cores
+
+# STAGE 8c: FULL msmarco (8.8M vectors), same measurements as stage8_datasets.job. Build peaks ~70 GB RAM, ~70 GB /scratch.
+# Per task: build once (16 CPUs), then queries pinned to ONE cpu:
+#   M0 = unlimited index cache (default), search_exp 1..1024, 1000 queries, cold first pass
+#   M1..M4 = index cache limit = 100%, 50%, 25%, 10% of the index size on disk, search_exp 16,64,256, 300 queries
+# Results: ~/ecp_results/ds_<name>_<mode>.jsonl (+ meta / leaf sizes / per-query files).
+# Needs: ecp_run2.py (new version) in $HOME, datasets from stage8_download.job, environment from stage 1.
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR" "$HOME/ecp_results"
+
+NAME=msmarco-qwen-1024-normalized
+DATA=$HOME/vibe_data/$NAME.hdf5
+RES=$HOME/ecp_results
+SCR=/scratch/${SLURM_JOB_ID}
+SHORT=msmarco
+
+echo "=== CONTEXT: $NAME  ==="
+hostname; date; nproc; lscpu | grep "Model name"; free -g | head -2
+echo "load average: $(cat /proc/loadavg)"
+test -f "$DATA" || { echo "STOP: $DATA not found "; exit 1; }
+test -f "$HOME/ecp_run2.py" || { echo "STOP: ecp_run2.py missing"; exit 1; }
+avail_gb=$(df -BG --output=avail /scratch | tail -1 | tr -dc '0-9')
+[ "${avail_gb:-0}" -ge 80 ] || { echo "STOP: <80 GB free in /scratch"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/ecp_env"
+python -c "import ecpfs; print('env OK')"
+export ECP_SHA=$(git -C "$HOME/ecp_src" rev-parse HEAD 2>/dev/null || echo unknown)
+cleanup() { rm -rf "$SCR"; echo "scratch cleaned"; }
+trap cleanup EXIT INT TERM
+mkdir -p "$SCR"
+CPU=$(python -c "import os; print(min(os.sched_getaffinity(0)))")
+COMMON="--data $DATA --workdir $SCR --target 200 --levels 3 --k 100"
+
+echo; echo "=== BUILD ==="; date
+python "$HOME/ecp_run2.py" $COMMON --out $RES/ds_${SHORT}_M0.jsonl --build-only
+
+echo; echo "=== M0 unlimited cache ==="; date
+RAYON_NUM_THREADS=1 taskset -c "$CPU" python "$HOME/ecp_run2.py" $COMMON --out $RES/ds_${SHORT}_M0.jsonl \
+  --search-exp 1,2,4,8,16,32,64,128,256,512,1024 --n-queries 1000 --passes 2 --cold 1
+
+i=1
+for FR in 1.0 0.5 0.25 0.1; do
+  echo; echo "=== M$i cache limit = $FR x index size ==="; date
+  RAYON_NUM_THREADS=1 taskset -c "$CPU" python "$HOME/ecp_run2.py" $COMMON --out $RES/ds_${SHORT}_M${i}_frac${FR}.jsonl \
+    --search-exp 16,64,256 --n-queries 300 --passes 2 --cold 1 --index-memory-frac $FR
+  i=$((i+1))
+done
+echo; echo "=== SUMMARY ==="; date; ls -l $RES/ds_${SHORT}_*
+echo "ALL DONE"

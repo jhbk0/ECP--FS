@@ -1,0 +1,97 @@
+#!/bin/bash
+#SBATCH --job-name=ecp_install
+#SBATCH --output=ecp_install.out
+#SBATCH --error=ecp_install.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
+#SBATCH --partition=cores
+
+# STAGE 1: build the environment + eCP-FS 0.9.101 from source, then run a tiny end-to-end test.
+# Needs ecp_run.py in the SAME folder (your home folder) as this file.
+# Safe to run twice: finished steps are skipped.
+# Everything installed goes under /home/ahmh/ecp_env, ecp_src and ecp_wheels (no sudo, no system change).
+
+set -eo pipefail
+
+export TMPDIR=$HOME/tmp
+export TMP_DIR=$HOME/tmp
+export TMP=$HOME/tmp
+export TEMP=$HOME/tmp
+export CONDA_PKGS_DIRS=$HOME/conda_pkgs_cache
+mkdir -p "$TMPDIR"
+
+ENV=$HOME/ecp_env
+SRC=$HOME/ecp_src
+WHEELS=$HOME/ecp_wheels
+SHA=b730f102512329e4ef25fadf1b1f6d5f68215310     # ecpfs 0.9.101 (Omar's fix)
+CONDA_ROOT=/opt/itu/easybuild/software/Miniconda3/25.5.1-1
+
+echo "=== 1. MODULES ==="
+module load Miniconda3/25.5.1-1
+module load GCCcore/13.3.0          # newer C/C++ compiler (blosc, lz4, snappy are compiled from C source)
+gcc --version | head -1; g++ --version | head -1
+rustc --version; cargo --version
+test -f "$HOME/ecp_run.py" || { echo "STOP: ecp_run.py is not in $HOME"; exit 1; }
+
+echo; echo "=== 2. CONDA ENVIRONMENT (python 3.14, numpy, h5py, maturin, git from conda-forge) ==="
+if [ -x "$ENV/bin/python" ]; then
+  echo "environment already exists, skipping creation"
+else
+  $CONDA_ROOT/bin/conda create -y -p "$ENV" --override-channels -c conda-forge \
+      "python=3.14" "numpy>=2.5.2" h5py maturin git
+fi
+source $CONDA_ROOT/etc/profile.d/conda.sh
+conda activate "$ENV"
+python --version
+python -c "import numpy, h5py; print('numpy', numpy.__version__, 'h5py', h5py.__version__)"
+maturin --version
+git --version
+
+echo; echo "=== 3. GET ecpfs SOURCE AT THE EXACT COMMIT ==="
+if [ ! -d "$SRC/.git" ]; then
+  git clone https://github.com/Ok2610/ecpfs.git "$SRC"
+fi
+cd "$SRC"
+git checkout -q "$SHA"
+echo "source commit: $(git rev-parse HEAD)"
+grep -m1 '^version' pyproject.toml
+
+echo; echo "=== 4. BUILD THE WHEEL (Rust compile, about 3 to 10 minutes) ==="
+export CARGO_BUILD_JOBS=$SLURM_CPUS_PER_TASK
+mkdir -p "$WHEELS"
+if ls "$WHEELS"/ecpfs-0.9.101-*.whl >/dev/null 2>&1; then
+  echo "wheel already built, skipping"
+else
+  maturin build --release -o "$WHEELS"
+fi
+ls -l "$WHEELS"
+
+echo; echo "=== 5. INSTALL THE WHEEL (from the local file, no internet needed) ==="
+pip install --no-deps --no-index --force-reinstall "$WHEELS"/ecpfs-0.9.101-*.whl
+python -c "import ecpfs, numpy, h5py; print('ecpfs import OK from', ecpfs.__file__)"
+
+echo; echo "=== 6. TINY END-TO-END TEST ON FAKE DATA, WORKING IN /scratch ==="
+cd "$HOME"
+SCR=/scratch/$SLURM_JOB_ID
+cleanup() { rm -rf "$SCR"; echo "scratch cleaned"; }
+trap cleanup EXIT INT TERM
+mkdir -p "$SCR"
+python - <<PY
+import h5py, numpy as np
+rng = np.random.default_rng(0)
+N, d, Q = 30000, 32, 200
+X = rng.normal(size=(N, d)).astype('float32'); X /= np.linalg.norm(X, axis=1, keepdims=True)
+T = rng.normal(size=(Q, d)).astype('float32'); T /= np.linalg.norm(T, axis=1, keepdims=True)
+nb = np.argsort(-(T @ X.T), axis=1)[:, :100]
+with h5py.File("$SCR/fake-32-normalized.hdf5", "w") as f:
+    f['train'] = X; f['test'] = T; f['neighbors'] = nb; f.attrs['distance'] = 'normalized'
+print("fake dataset written")
+PY
+python "$HOME/ecp_run.py" --data "$SCR/fake-32-normalized.hdf5" --workdir "$SCR/work" \
+   --out "$HOME/ecp_test_results.jsonl" --target 100 --levels 3 --search-exp 1,8,64,512 \
+   --n-queries 200 --passes 2
+echo
+echo "EXPECTED if everything works: about 300 leaf clusters (mean 100, max several hundred) and recall rising from about 0.07 (search_exp 1) to 1.00 (search_exp 512)"
+echo "ALL DONE"

@@ -1,0 +1,78 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_ecp_test
+#SBATCH --output=vibe_ecp_test.out
+#SBATCH --error=vibe_ecp_test.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=00:40:00
+#SBATCH --partition=cores
+
+# STAGE 12 TEST: the real eCP-FS through VIBE's run.py on a SMALL slice (first 20,000 vectors of ccnews, 200 queries,
+# 1 run per setting). Checks that it builds, searches, saves results and that recall rises with search_exp,
+# BEFORE the long run. Nothing here touches the big run. Safe to run twice.
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR"
+SRC=$HOME/vibe_src
+FULL=$HOME/vibe_data/ccnews-nomic-768-normalized.hdf5
+NAME=ecptest-768-normalized
+WORK=$HOME/vibe_run_ecp_test
+SCR=/scratch/${SLURM_JOB_ID}
+test -f "$SRC/vibe/algorithms/ecpfs/module.py" || { echo "STOP: run stage12_install_ecp_in_vibe.job first"; exit 1; }
+test -f "$FULL" || { echo "STOP: $FULL not found"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/ecp_env"
+echo "python3 = $(which python3)"; hostname; date
+trap 'rm -rf "$SCR"' EXIT INT TERM
+mkdir -p "$SCR"; export ECPFS_WORKDIR=$SCR
+
+rm -rf "$WORK"; mkdir -p "$WORK/data"
+cp -r "$SRC/vibe" "$SRC/run.py" "$SRC/run_algorithm.py" "$SRC/logging.conf" "$WORK/"
+
+echo; echo "=== 1. make the small VIBE-format dataset (exact neighbours by brute force) ==="
+python3 - "$FULL" "$WORK/data/$NAME.hdf5" <<'PY'
+import sys, h5py, numpy as np
+src, dst = sys.argv[1], sys.argv[2]
+NT, NQ, K = 20000, 200, 100
+with h5py.File(src, "r") as f:
+    train = np.asarray(f["train"][:NT], dtype=np.float32)
+    test = np.asarray(f["test"][:NQ], dtype=np.float32)
+    dim = int(f.attrs["dimension"])
+sc = test @ train.T                       # normalized vectors: distance = 1 - inner product (VIBE's definition)
+idx = np.argsort(-sc, axis=1)[:, :K]
+dist = 1.0 - np.take_along_axis(sc, idx, axis=1)
+with h5py.File(dst, "w") as g:
+    g["train"], g["test"] = train, test
+    g["neighbors"], g["distances"] = idx.astype(np.int64), dist.astype(np.float64)
+    g["avg_distances"] = dist.mean(axis=1)
+    g.attrs["dimension"], g.attrs["distance"], g.attrs["point_type"] = dim, "normalized", "float"
+print("small dataset:", train.shape, test.shape, "dimension", dim)
+PY
+
+echo; echo "=== 2. eCP-FS through VIBE (7 cluster sizes x 5 budgets, 1 run each) ==="; date
+cd "$WORK"
+python3 run.py --dataset "$NAME" --local --module ecpfs --algorithm ecpfs --count 100 --runs 1 --parallelism 1 --timeout 1800 \
+  || echo "RUN FAILED"
+date
+
+echo; echo "=== 3. RESULT TABLE (recall@100 and queries per second) ==="
+python3 - "$WORK" "$NAME" <<'PY'
+import sys, glob, h5py, numpy as np
+work, name = sys.argv[1], sys.argv[2]
+true = h5py.File(f"{work}/data/{name}.hdf5")["distances"][:]
+rows = []
+for fn in glob.glob(f"{work}/results/{name}/100/ecpfs/*.hdf5"):
+    with h5py.File(fn) as h:
+        for g in h:
+            a, d = h[g].attrs, h[g]["distances"][:]
+            rec = float(np.mean([(d[i][:100] <= true[i][99] + 1e-3).sum() / 100 for i in range(len(d))]))
+            rows.append((int(a["target_items"]), int(str(a["name"]).split("search_exp=")[1].rstrip(")")), rec, float(a["best_qps"]), float(a["build_time"])))
+rows.sort()
+print("target_items  search_exp  recall@100     qps  build_s")
+for r in rows: print(f"{r[0]:12d} {r[1]:11d} {r[2]:11.3f} {r[3]:7.0f} {r[4]:8.1f}")
+print("rows:", len(rows), "(expected 35)")
+PY
+echo "TEST DONE"

@@ -1,0 +1,60 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_hnsw
+#SBATCH --output=vibe_hnsw_%a.out
+#SBATCH --error=vibe_hnsw_%a.err
+#SBATCH --array=0-2%1
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=48G
+#SBATCH --time=24:00:00
+#SBATCH --partition=cores
+
+# STAGE 11b: VIBE's own run.py, container-free (--local), hnswlib (HNSW) on the 3 smaller datasets of the eCP-FS run.
+# Array task 0=ccnews, 1=imagenet-clip, 2=laion-clip (OOD). msmarco is NOT included: VIBE builds with one thread and the
+# build for 8.8M vectors is estimated at several days (see the note in the message that came with this file).
+# Start it AFTER the IVF job so the two never run at the same time:
+#   sbatch --nodelist=cn8 --dependency=afterany:<IVF job id> stage11b_vibe_hnsw.job
+#
+# VIBE (unchanged): all 1000 test queries, k = 100, each setting is run 5 times and the BEST run is reported,
+#   pinned to one core, efConstruction = 500 and VIBE's ef list.
+# Differences from VIBE's default: --local (no Apptainer) and graph size M = 16 and 48 only (vibe_hnswlib.patch).
+# Results: ~/vibe_run_hnsw_<name>/results/<dataset>/100/hnswlib/*.hdf5
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+mkdir -p "$TMPDIR"
+
+NAMES=(ccnews-nomic-768-normalized imagenet-clip-512-normalized laion-clip-512-normalized)
+NAME=${NAMES[$SLURM_ARRAY_TASK_ID]}
+SHORT=${NAME%%-*}
+DATA=$HOME/vibe_data/$NAME.hdf5
+SRC=$HOME/vibe_src
+WORK=$HOME/vibe_run_hnsw_$SHORT
+
+echo "=== CONTEXT: $NAME (hnswlib) ==="; hostname; date; nproc; lscpu | grep "Model name"; free -g | head -2
+echo "load average: $(cat /proc/loadavg)"
+test -f "$DATA" || { echo "STOP: $DATA not found"; exit 1; }
+test -f "$SRC/run.py" || { echo "STOP: run stage11_install_vibe.job first ($SRC/run.py missing)"; exit 1; }
+
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/vibe_env"
+# VIBE's worker starts "python3" from PATH, so the activated environment must be the first python3
+echo "python3 = $(which python3)"
+# (git lives in the conda environment, so this check must come after the activation)
+git -C "$SRC" apply --reverse --check "$HOME/vibe_hnswlib.patch" 2>/dev/null || { echo "STOP: vibe_hnswlib.patch is not applied in $SRC"; exit 1; }
+python3 -c "import hnswlib; print('hnswlib OK')"
+echo "VIBE commit: $(git -C "$SRC" rev-parse HEAD)"
+
+rm -rf "$WORK"; mkdir -p "$WORK/data"
+cp -r "$SRC/vibe" "$SRC/run.py" "$SRC/run_algorithm.py" "$SRC/logging.conf" "$WORK/"
+ln -s "$DATA" "$WORK/data/$NAME.hdf5"
+cd "$WORK"
+
+echo; echo "=================== hnswlib (M = 16, 48; efConstruction 500) ==================="; date
+python3 run.py --dataset "$NAME" --local --module hnswlib --algorithm hnswlib --count 100 --runs 5 --parallelism 1 --timeout 86400 \
+  || echo "FAILED hnswlib on $NAME (continuing)"
+
+echo; echo "=== SUMMARY ==="; date
+echo "hnswlib: $(ls "results/$NAME/100/hnswlib" 2>/dev/null | grep -c '\.hdf5$') result files"
+du -sh results 2>/dev/null
+echo "ALL DONE"

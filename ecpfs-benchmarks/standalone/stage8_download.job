@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_dl
+#SBATCH --output=vibe_dl.out
+#SBATCH --error=vibe_dl.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=01:00:00
+#SBATCH --partition=cores
+
+# STAGE 8a: download 3 VIBE datasets (~8.7 GB total) into ~/vibe_data. Safe to re-run (continues partial files).
+set -eo pipefail
+mkdir -p "$HOME/vibe_data"; cd "$HOME/vibe_data"
+BASE=https://huggingface.co/datasets/vector-index-bench/vibe/resolve/main
+for f in ccnews-nomic-768-normalized.hdf5 imagenet-clip-512-normalized.hdf5 laion-clip-512-normalized.hdf5; do
+  echo "=== $f ==="; date
+  curl -L --fail --retry 5 -C - -o "$f" "$BASE/$f"
+  ls -l "$f"
+done
+echo "=== SUMMARY ==="; ls -l "$HOME/vibe_data"; df -h "$HOME" | tail -1
+echo "ALL DONE"

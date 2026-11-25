@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=collect
+#SBATCH --output=collect.out
+#SBATCH --error=collect.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=00:20:00
+#SBATCH --partition=cores
+
+# STAGE 13: read all finished VIBE result files (IVF, hnswlib, eCP-FS) and write ONE table: ~/vibe_results.csv
+# Read-only on the results. Safe to run any time, also while other jobs are still running (unfinished runs are skipped).
+set -eo pipefail
+module load Miniconda3/25.5.1-1
+source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
+conda activate "$HOME/vibe_env"
+test -f "$HOME/collect_vibe.py" || { echo "STOP: collect_vibe.py missing"; exit 1; }
+RUNS=$(ls -d $HOME/vibe_run_ivf_* $HOME/vibe_run_hnsw_* $HOME/vibe_run_ecp_* 2>/dev/null | grep -v vibe_run_ecp_test || true)
+echo "run folders:"; echo "$RUNS"
+python3 "$HOME/collect_vibe.py" "$HOME/vibe_results.csv" $RUNS
+echo "COLLECT DONE"

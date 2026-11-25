@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH --job-name=vibe_install
+#SBATCH --output=vibe_install.out
+#SBATCH --error=vibe_install.err
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
+#SBATCH --partition=cores
+
+# STAGE 11 (setup): install the VIBE benchmark code + Faiss + hnswlib, WITHOUT containers (VIBE's --local mode).
+# Needs vibe_hnswlib.patch in the SAME folder (your home folder) as this file.
+# Safe to run twice: finished steps are skipped. Everything goes under ~/vibe_env and ~/vibe_src (no sudo, no system change).
+# This must run as a job (compute node), not on the login node.
+
+set -eo pipefail
+export TMPDIR=$HOME/tmp TMP_DIR=$HOME/tmp TMP=$HOME/tmp TEMP=$HOME/tmp
+export CONDA_PKGS_DIRS=$HOME/conda_pkgs_cache
+mkdir -p "$TMPDIR"
+
+ENV=$HOME/vibe_env
+SRC=$HOME/vibe_src
+SHA=d2c94d480d7577fccaf20fb74366e4194a9a6e01      # the VIBE commit the patch and the tests were made against
+CONDA_ROOT=/opt/itu/easybuild/software/Miniconda3/25.5.1-1
+
+test -f "$HOME/vibe_hnswlib.patch" || { echo "STOP: vibe_hnswlib.patch is not in $HOME"; exit 1; }
+
+echo "=== 1. CONDA ENVIRONMENT (python 3.11, numpy, h5py, numba, psutil, git from conda-forge) ==="
+module load Miniconda3/25.5.1-1
+module load GCCcore/13.3.0          # hnswlib is compiled when installed
+g++ --version | head -1
+if [ -x "$ENV/bin/python" ]; then
+  echo "environment already exists, skipping creation"
+else
+  $CONDA_ROOT/bin/conda create -y -p "$ENV" --override-channels -c conda-forge "python=3.11" numpy h5py numba psutil git
+fi
+source $CONDA_ROOT/etc/profile.d/conda.sh
+conda activate "$ENV"
+python --version
+
+echo; echo "=== 2. FAISS, hnswlib and the small extra packages (pip) ==="
+python -m pip install --no-input faiss-cpu ansicolors pyyaml
+python -m pip install --no-input hnswlib==0.8.0          # the version VIBE itself uses
+python -c "import faiss, hnswlib, numpy, h5py; print('faiss', faiss.__version__, '| hnswlib OK | numpy', numpy.__version__, '| h5py', h5py.__version__)"
+
+echo; echo "=== 3. VIBE source at the pinned commit ==="
+if [ ! -d "$SRC/.git" ]; then
+  git clone https://github.com/vector-index-bench/vibe.git "$SRC"
+fi
+git -C "$SRC" checkout "$SHA"
+git -C "$SRC" log -1 --format='VIBE commit %H (%cd)'
+
+echo; echo "=== 4. THE ONE CHANGE TO VIBE'S CODE (vibe_hnswlib.patch: hnswlib graph size M = 16 and 48 only) ==="
+if git -C "$SRC" apply --check "$HOME/vibe_hnswlib.patch" 2>/dev/null; then
+  git -C "$SRC" apply "$HOME/vibe_hnswlib.patch"; echo "patch applied"
+elif git -C "$SRC" apply --reverse --check "$HOME/vibe_hnswlib.patch" 2>/dev/null; then
+  echo "patch was already applied"
+else
+  echo "STOP: the patch neither applies nor is already applied"; exit 1
+fi
+git -C "$SRC" diff --stat
+
+echo; echo "=== 5. CHECK: VIBE can import both modules in this environment ==="
+cd "$SRC"
+python -c "
+import importlib
+m = importlib.import_module('vibe.algorithms.faiss.module'); print('FaissIVF', hasattr(m, 'FaissIVF'))
+h = importlib.import_module('vibe.algorithms.hnswlib.module'); print('HnswLib', hasattr(h, 'HnswLib'))"
+python run.py --list-algorithms | grep -i -E "ivf\(faiss\)|hnswlib" | head
+echo "INSTALL DONE"
