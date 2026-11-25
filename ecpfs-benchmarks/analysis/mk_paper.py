@@ -27,7 +27,7 @@ for ax,n,t in zip(axs.flat,["ccnews","imagenet","laion","msmarco"],"abcd"):
     ax.set_xlabel("Recall@100"); ax.set_ylabel("Queries per second (warm)")
 h,l=axs[0,0].get_legend_handles_labels()
 fig.legend(h,l,title="Cluster size",ncol=7,frameon=False,loc="lower center",fontsize=8,title_fontsize=8,handlelength=1.8,columnspacing=1.2)
-fig.tight_layout(rect=(0,.08,1,1)); fig.savefig(os.path.join(OUT,"fig_cluster_size.pdf")); plt.close(fig)
+fig.tight_layout(rect=(0,.08,1,1)); fig.savefig(os.path.join(OUT,"fig_cluster_size.pdf")); fig.savefig(os.path.join(OUT,"fig_cluster_size.png"),dpi=300); plt.close(fig)
 
 # fig 3: (a) cache share at 512KB, B=50MB ; (b) warm/cold ratio vs budget per dataset, 512KB
 D=["ccnews","imagenet","laion","msmarco"]; dc=["#0072B2","#E69F00","#009E73","#D55E00"]; dm=["o","s","^","D"]
@@ -52,4 +52,4 @@ axs[1].set_title("(b) Cold start, 512 KB clusters",loc="left",fontsize=8.5)
 for ax in axs: style(ax)
 h,l=axs[0].get_legend_handles_labels()
 fig.legend(h,l,ncol=4,frameon=False,loc="lower center",fontsize=8,handlelength=1.8,columnspacing=1.6)
-fig.tight_layout(rect=(0,.09,1,1)); fig.savefig(os.path.join(OUT,"fig_memory_cold.pdf")); plt.close(fig)
+fig.tight_layout(rect=(0,.09,1,1)); fig.savefig(os.path.join(OUT,"fig_memory_cold.pdf")); fig.savefig(os.path.join(OUT,"fig_memory_cold.png"),dpi=300); plt.close(fig)

@@ -27,8 +27,8 @@ VIBE: all 1000 queries, k = 100, 5 runs, best run reported.
 - `all_results_summary.csv` : one row per setting (222)
 - `an3.py` : tables (run inside `results/`: `python3 ../an3.py`)
 - `mk_paper.py` : Figures 2 and 3. `python3 mk_paper.py results ../figures`
-- `fig_protocol.py` : Figure 1 (protocol diagram), writes `fig_protocol.pdf` in the current folder
-The finished PDFs are in `figures/`. Needs python3, numpy, matplotlib.
+- `fig_protocol.py` : Figure 1 (protocol diagram), writes `fig_protocol.pdf` and `fig_protocol.png` (300 dpi) in the current folder
+The finished PDFs and PNGs are in `figures/`. `mk_paper.py` also writes both formats. Needs python3, numpy, matplotlib.
 
 ## Notes
 - Recall: stand-alone = identifier overlap; VIBE results = distance rule (dist <= true 100th distance + 1e-3).

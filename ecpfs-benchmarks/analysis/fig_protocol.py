@@ -46,5 +46,5 @@ arrows(yb + 0.12)
 bracket(xs[1], xs[4] + bw, yb + 0.06, "for each query setting")
 
 fig.savefig("fig_protocol.pdf", bbox_inches="tight", pad_inches=0.02)
-fig.savefig("fig_protocol_small.png", dpi=300, bbox_inches="tight", pad_inches=0.02)
+fig.savefig("fig_protocol.png", dpi=300, bbox_inches="tight", pad_inches=0.02)
 print("ok")
